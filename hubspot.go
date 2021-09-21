@@ -21,6 +21,7 @@ type HubspotClient struct {
 	client        *http.Client
 	BaseURL       *url.URL
 	UserAgent     string
+	ContentType   string
 	// Services used for talking to different parts of the API
 	ContactLists      *ContactListsService
 	Contacts          *ContactsService
@@ -28,6 +29,12 @@ type HubspotClient struct {
 	CompanyProperties *CompanyPropertiesService
 	Companies         *CompaniesService
 	Forms             *FormService
+	OAuths            *OAuthsService
+	Tickets           *TicketsService
+	CMSFiles          *CMSFilesService
+	Engagements       *EngagementsService
+	CRMAssociations   *CRMAssociationsService
+	Owners            *OwnersService
 }
 
 type service struct {
@@ -59,6 +66,12 @@ func NewHubspotClient(auth Authenticator) *HubspotClient {
 	r.Companies = (*CompaniesService)(&r.common)
 	//r.Forms = (*FormService)(&r.common)
 	r.Forms = &FormService{service: r.common}
+	r.OAuths = (*OAuthsService)(&r.common)
+	r.Tickets = (*TicketsService)(&r.common)
+	r.CMSFiles = (*CMSFilesService)(&r.common)
+	r.Engagements = (*EngagementsService)(&r.common)
+	r.CRMAssociations = (*CRMAssociationsService)(&r.common)
+	r.Owners = (*OwnersService)(&r.common)
 
 	return r
 }
@@ -123,8 +136,13 @@ func (c *HubspotClient) NewRequest(method, urlStr string, body interface{}) (*ht
 	var buf io.ReadWriter
 	if body != nil {
 		buf = new(bytes.Buffer)
-		if e := json.NewEncoder(buf).Encode(body); e != nil {
-			return nil, e
+		switch v := body.(type) {
+		case bytes.Buffer:
+			buf = &v
+		default:
+			if e := json.NewEncoder(buf).Encode(body); e != nil {
+				return nil, e
+			}
 		}
 	}
 
@@ -142,7 +160,12 @@ func (c *HubspotClient) NewRequest(method, urlStr string, body interface{}) (*ht
 
 	if body != nil {
 		req.Header.Set("Accept", "application/json")
-		req.Header.Set("Content-Type", "application/json")
+		if c.ContentType != "" {
+			req.Header.Set("Content-Type", c.ContentType)
+			c.ContentType = ""
+		} else {
+			req.Header.Set("Content-Type", "application/json")
+		}
 	}
 
 	if c.UserAgent != "" {
